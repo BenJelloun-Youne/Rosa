@@ -4,6 +4,7 @@ import sqlite3
 import plotly.express as px
 from db_mapper import MergedData
 from datetime import datetime
+import os
 
 # Configuration de la page
 st.set_page_config(
@@ -24,7 +25,9 @@ st.title("📊 Visualisation et Filtrage des Données")
 # Connexion à la base de données avec mise en cache
 @st.cache_data(ttl=3600)  # Cache pour 1 heure
 def load_data():
-    conn = sqlite3.connect('merged_data.db')
+    # Utiliser le chemin absolu pour la base de données
+    db_path = os.path.join(os.path.dirname(__file__), 'merged_data.db')
+    conn = sqlite3.connect(db_path)
     # Optimisation : ne charger que les colonnes nécessaires
     df = pd.read_sql_query("""
         SELECT 
@@ -41,7 +44,11 @@ def load_data():
     return df
 
 # Chargement des données
-df = load_data()
+try:
+    df = load_data()
+except Exception as e:
+    st.error(f"Erreur lors du chargement de la base de données : {str(e)}")
+    st.stop()
 
 # Sidebar pour les filtres
 st.sidebar.header("Filtres")
@@ -138,7 +145,7 @@ if len(available_contacts) > 0:
             'nombre_contacts': len(contacts_to_download)
         })
         st.success(f"{len(contacts_to_download)} contacts téléchargés avec succès !")
-        st.experimental_rerun()
+        st.rerun()
 else:
     st.warning("⚠️ Aucun contact disponible pour le téléchargement avec ces filtres.")
 
@@ -153,4 +160,4 @@ if st.sidebar.button("🔄 Réinitialiser l'historique des téléchargements"):
     st.session_state.downloaded_contacts = set()
     st.session_state.download_history = []
     st.success("Historique des téléchargements réinitialisé !")
-    st.experimental_rerun() 
+    st.rerun() 
