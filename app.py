@@ -5,13 +5,28 @@ import plotly.express as px
 from db_mapper import MergedData
 from datetime import datetime
 import os
+import json
 
 # Configuration de la page
 st.set_page_config(
-    page_title="Visualisation des Données",
+    page_title="Rosa - Analyse des Contacts",
     page_icon="📊",
     layout="wide"
 )
+
+# Fonction pour obtenir le chemin absolu de la base de données
+def get_db_path():
+    # Essayer d'abord le chemin relatif
+    db_path = 'merged_data.db'
+    if not os.path.exists(db_path):
+        # Si non trouvé, chercher dans le répertoire parent
+        parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        db_path = os.path.join(parent_dir, 'merged_data.db')
+        if not os.path.exists(db_path):
+            # Si toujours non trouvé, chercher dans le répertoire courant
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            db_path = os.path.join(current_dir, 'merged_data.db')
+    return db_path
 
 # Initialisation des variables de session
 if 'downloaded_contacts' not in st.session_state:
@@ -22,26 +37,43 @@ if 'download_history' not in st.session_state:
 # Titre de l'application
 st.title("📊 Visualisation et Filtrage des Données")
 
-# Connexion à la base de données avec mise en cache
-@st.cache_data(ttl=3600)  # Cache pour 1 heure
+# Chargement des données avec gestion d'erreur
+@st.cache_data(ttl=3600)
 def load_data():
-    # Utiliser le chemin absolu pour la base de données
-    db_path = os.path.join(os.path.dirname(__file__), 'merged_data.db')
-    conn = sqlite3.connect(db_path)
-    # Optimisation : ne charger que les colonnes nécessaires
-    df = pd.read_sql_query("""
+    try:
+        db_path = get_db_path()
+        if not os.path.exists(db_path):
+            st.error(f"Base de données non trouvée à l'emplacement : {db_path}")
+            return None
+            
+        conn = sqlite3.connect(db_path)
+        query = """
         SELECT 
-            "Nom du statut",
-            "Nombre de fois appelé",
-            "Prénom",
-            "Nom",
-            "Téléphone",
-            "Email",
-            "source_file"
-        FROM merged_data
-    """, conn)
-    conn.close()
-    return df
+            phone_number,
+            name,
+            total_calls,
+            total_duration,
+            last_call_date,
+            first_call_date,
+            call_frequency,
+            average_duration,
+            status,
+            tags,
+            notes,
+            location,
+            timezone,
+            language,
+            device_info,
+            call_history,
+            metadata
+        FROM contacts
+        """
+        df = pd.read_sql_query(query, conn)
+        conn.close()
+        return df
+    except Exception as e:
+        st.error(f"Erreur lors du chargement des données : {str(e)}")
+        return None
 
 # Chargement des données
 try:
@@ -54,7 +86,7 @@ except Exception as e:
 st.sidebar.header("Filtres")
 
 # Filtre pour le statut
-status_options = sorted(df['Nom du statut'].unique())
+status_options = sorted(df['status'].unique())
 selected_status = st.sidebar.multiselect(
     "Sélectionnez le(s) statut(s)",
     options=status_options,
@@ -73,10 +105,10 @@ num_rows = st.sidebar.number_input(
 # Application des filtres
 filtered_df = df.copy()
 if selected_status:
-    filtered_df = filtered_df[filtered_df['Nom du statut'].isin(selected_status)]
+    filtered_df = filtered_df[filtered_df['status'].isin(selected_status)]
 
 # Filtrer les contacts déjà téléchargés
-available_contacts = filtered_df[~filtered_df['Téléphone'].isin(st.session_state.downloaded_contacts)]
+available_contacts = filtered_df[~filtered_df['phone_number'].isin(st.session_state.downloaded_contacts)]
 
 # Affichage des statistiques
 col1, col2, col3, col4 = st.columns(4)
@@ -91,7 +123,7 @@ with col4:
 
 # Affichage des compteurs par statut
 st.subheader("Répartition par statut")
-status_counts = available_contacts['Nom du statut'].value_counts()
+status_counts = available_contacts['status'].value_counts()
 for status, count in status_counts.items():
     st.write(f"**{status}**: {count} enregistrements disponibles")
 
@@ -101,8 +133,8 @@ st.header("Visualisations")
 # Graphique du nombre d'appels par statut
 fig_calls = px.histogram(
     available_contacts,
-    x='Nombre de fois appelé',
-    color='Nom du statut',
+    x='total_calls',
+    color='status',
     title='Distribution des appels par statut (contacts disponibles uniquement)',
     barmode='group'
 )
@@ -111,7 +143,7 @@ st.plotly_chart(fig_calls, use_container_width=True)
 # Graphique des statuts
 fig_status = px.pie(
     available_contacts,
-    names='Nom du statut',
+    names='status',
     title='Répartition des statuts (contacts disponibles uniquement)'
 )
 st.plotly_chart(fig_status, use_container_width=True)
@@ -137,7 +169,7 @@ if len(available_contacts) > 0:
         key='download-csv'
     ):
         # Ajouter les contacts téléchargés à l'ensemble
-        st.session_state.downloaded_contacts.update(contacts_to_download['Téléphone'].tolist())
+        st.session_state.downloaded_contacts.update(contacts_to_download['phone_number'].tolist())
         # Ajouter à l'historique des téléchargements
         st.session_state.download_history.append({
             'date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
