@@ -1,0 +1,13 @@
+INSTRUCTIONS D'INSTALLATION
+
+1. Installation des dépendances :
+   pip install -r requirements.txt
+
+2. Reconstruction de la base de données :
+   cat merged_data_part_* > merged_data.db.gz
+   gzip -d merged_data.db.gz
+
+3. Lancement de l'application :
+   streamlit run app.py
+
+Note : Assurez-vous que tous les fichiers sont dans le même dossier avant de commencer. 
