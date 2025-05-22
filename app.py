@@ -49,24 +49,14 @@ def load_data():
         conn = sqlite3.connect(db_path)
         query = """
         SELECT 
-            phone_number,
-            name,
-            total_calls,
-            total_duration,
-            last_call_date,
-            first_call_date,
-            call_frequency,
-            average_duration,
-            status,
-            tags,
-            notes,
-            location,
-            timezone,
-            language,
-            device_info,
-            call_history,
-            metadata
-        FROM contacts
+            "Nom du statut" as status,
+            "Nombre de fois appelé" as total_calls,
+            "Prénom" as first_name,
+            "Nom" as last_name,
+            "Téléphone" as phone_number,
+            "Email" as email,
+            "source_file"
+        FROM merged_data
         """
         df = pd.read_sql_query(query, conn)
         conn.close()
